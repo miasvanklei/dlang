@@ -4,7 +4,7 @@
 EAPI=8
 
 DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..40} )
-LLVM_COMPAT=( {15..19} )
+LLVM_COMPAT=( {15..20} )
 PYTHON_COMPAT=( python3_{10..13} )
 inherit dlang-single llvm-r1 multiprocessing python-any-r1 toolchain-funcs cmake
 
@@ -30,7 +30,7 @@ LICENSE+=" Apache-2.0-with-LLVM-exceptions UoI-NCSA"
 LICENSE+=" GPL-2+ Artistic"
 
 SLOT="$(ver_cut 1-2)"
-KEYWORDS="~amd64 ~x86"
+KEYWORDS="~amd64 ~arm64 ~x86"
 
 IUSE="debug test"
 RESTRICT="!test? ( test )"
@@ -62,6 +62,10 @@ IDEPEND=">=app-eselect/eselect-dlang-20241230"
 PDEPEND="dev-libs/ldc2-runtime:${SLOT}"
 
 INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${SLOT}" # /usr/lib/ldc2/1.40
+
+PATCHES=(
+	"${FILESDIR}/ldc2-1.40.0-llvm20.patch"
+)
 
 python_check_deps() {
 	python_has_version "dev-python/lit[${PYTHON_USEDEP}]"
