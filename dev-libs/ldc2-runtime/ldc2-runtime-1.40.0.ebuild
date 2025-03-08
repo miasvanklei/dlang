@@ -51,6 +51,10 @@ INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${LDC2_SLOT}" # /usr/lib/ldc2/1.40
 STRING_IMPORTS_DIR="${T}/views"
 LDC2_CONF_DIR="${WORKDIR}/conf"
 
+PATCHES=(
+	"${FILESDIR}"/ldc2-runtime-1.40.0-llvm-20.patch
+)
+
 src_prepare() {
 	mkdir -p "${STRING_IMPORTS_DIR}" || die
 	local tzpath="${STRING_IMPORTS_DIR}/TZDatabaseDirFile"
