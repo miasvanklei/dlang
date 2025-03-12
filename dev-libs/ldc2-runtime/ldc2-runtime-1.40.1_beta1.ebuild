@@ -7,7 +7,7 @@ DLANG_COMPAT=( ldc2-1_$(ver_cut 2) )
 inherit dlang-single multilib cmake-multilib
 
 PATCH_VER=1
-PATCH_TAG_NAME="${PV}-patches-${PATCH_VER}"
+PATCH_TAG_NAME="1.40.0-patches-${PATCH_VER}"
 PATCH_URL_BASE="https://github.com/the-horo/ldc-patches/archive/refs/tags"
 
 DESCRIPTION="LLVM D Compiler"
@@ -50,6 +50,10 @@ IDEPEND=">=app-eselect/eselect-dlang-20241230"
 INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${LDC2_SLOT}" # /usr/lib/ldc2/1.40
 STRING_IMPORTS_DIR="${T}/views"
 LDC2_CONF_DIR="${WORKDIR}/conf"
+
+PATCHES=(
+	"${FILESDIR}"/ldc2-runtime-1.40.0-llvm-20.patch
+)
 
 src_prepare() {
 	mkdir -p "${STRING_IMPORTS_DIR}" || die
@@ -212,7 +216,7 @@ symlinks_release_runtime_to_debug() {
 			# and symlink them:
 			# ${file}                 == libdruntime-ldc-shared
 			# ${file/-ldc/-ldc-debug} == libdruntime-ldc-debug-shared
-			ln -s "${file}" "${1}/${file/-ldc/-ldc-debug}" || die
+			ln -sf "${file}" "${1}/${file/-ldc/-ldc-debug}" || die
 		done < <("${find_cmd[@]}")
 	}
 
