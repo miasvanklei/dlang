@@ -1,3 +1,5 @@
+diff --git a/driver/cl_options_sanitizers.h b/driver/cl_options_sanitizers.h
+index 16b38f70c8..e1eaa3c934 100644
 --- a/driver/cl_options_sanitizers.h
 +++ b/driver/cl_options_sanitizers.h
 @@ -14,7 +14,11 @@
@@ -12,9 +14,11 @@
  
  class FuncDeclaration;
  namespace llvm {
+diff --git a/gen/abi/aarch64.cpp b/gen/abi/aarch64.cpp
+index 7719e251cd..699a10da01 100644
 --- a/gen/abi/aarch64.cpp
 +++ b/gen/abi/aarch64.cpp
-@@ -121,7 +121,7 @@ struct AArch64TargetABI : TargetABI {
+@@ -126,7 +126,7 @@ struct AArch64TargetABI : TargetABI {
      // compiler magic: pass va_list args implicitly by reference
      if (!isReturnVal && isAAPCS64VaList(t)) {
        arg.byref = true;
@@ -23,6 +27,8 @@
        return;
      }
  
+diff --git a/gen/classes.cpp b/gen/classes.cpp
+index 51a7a554f3..732a6e5c36 100644
 --- a/gen/classes.cpp
 +++ b/gen/classes.cpp
 @@ -379,7 +379,7 @@ DValue *DtoDynamicCastObject(const Loc &loc, DValue *val, Type *_to) {
@@ -43,6 +49,8 @@
    // index vtbl
    const std::string name = fdecl->toChars();
    const auto vtblname = name + "@vtbl";
+diff --git a/gen/dcompute/druntime.h b/gen/dcompute/druntime.h
+index 2b1a2a6a85..1008c3cb39 100644
 --- a/gen/dcompute/druntime.h
 +++ b/gen/dcompute/druntime.h
 @@ -41,7 +41,7 @@ struct DcomputePointer {
@@ -54,18 +62,45 @@
    }
  };
  llvm::Optional<DcomputePointer> toDcomputePointer(StructDeclaration *sd);
+diff --git a/gen/dibuilder.cpp b/gen/dibuilder.cpp
+index 5843c98e58..7aff0de6e7 100644
+--- a/gen/dibuilder.cpp
++++ b/gen/dibuilder.cpp
+@@ -753,7 +753,11 @@ DISubroutineType DIBuilder::CreateFunctionType(Type *type,
+     if (pointeeType) {
+       DIType ditype = DBuilder.createReferenceType(
+           llvm::dwarf::DW_TAG_pointer_type, pointeeType, target.ptrsize * 8);
+-      ditype = DBuilder.createObjectPointerType(ditype);
++      ditype = DBuilder.createObjectPointerType(ditype
++#if LDC_LLVM_VER >= 2000
++      , /* Implicit */ true
++#endif
++      );
+       params.emplace_back(ditype);
+     }
+   }
+diff --git a/gen/dynamiccompile.cpp b/gen/dynamiccompile.cpp
+index 817e3c009e..d2cf0858c5 100644
 --- a/gen/dynamiccompile.cpp
 +++ b/gen/dynamiccompile.cpp
-@@ -686,8 +686,9 @@
+@@ -652,7 +652,7 @@ llvm::GlobalVariable *generateModuleListElem(IRState *irs, const Types &types,
+   auto *modListElem = new llvm::GlobalVariable(
+       irs->module, elem_type, false, llvm::GlobalValue::PrivateLinkage, init,
+       ".rtcompile_modlist_elem");
+-  modListElem->setAlignment(irs->module.getDataLayout().getABITypeAlign(elem_type->getPointerTo()));
++  modListElem->setAlignment(irs->module.getDataLayout().getABITypeAlign(LLPointerType::getUnqual(elem_type)));
+ 
+   return modListElem;
+ }
+@@ -687,7 +687,8 @@ void generateCtorBody(IRState *irs, const Types &types, llvm::Function *func,
    auto modListHeadPtr = declareModListHead(irs->module, types);
    llvm::Value *gepVals[] = {zero64, elemIndex};
-   auto elemNextPtr = builder.CreateGEP(modListElem, gepVals);
+   auto elemNextPtr = builder.CreateGEP(types.modListElemType, modListElem, gepVals);
+-  auto prevHeadVal = builder.CreateLoad(types.modListElemType->getPointerTo()->getPointerTo(), modListHeadPtr);
 +  auto modListElemPtr = LLPointerType::getUnqual(types.modListElemType);
-   auto prevHeadVal = builder.CreateLoad(builder.CreateBitOrPointerCast(
--      modListHeadPtr, types.modListElemType->getPointerTo()->getPointerTo()));
-+      modListHeadPtr, LLPointerType::getUnqual(modListElemPtr)));
++  auto prevHeadVal = builder.CreateLoad(LLPointerType::getUnqual(modListElemPtr), modListHeadPtr);
    auto voidPtr = builder.CreateBitOrPointerCast(
-       modListElem, llvm::IntegerType::getInt8PtrTy(irs->context()));
+       modListElem, getI8PtrType(irs->context()));
    builder.CreateStore(voidPtr, modListHeadPtr);
 @@ -835,7 +836,7 @@ void defineDynamicCompiledFunction(IRState *irs, IrFunction *func) {
      auto srcFunc = func->getLLVMFunc();
@@ -76,6 +111,8 @@
      auto thunkVar = new llvm::GlobalVariable(
          irs->module, thunkVarType, false, llvm::GlobalValue::PrivateLinkage,
          llvm::ConstantPointerNull::get(thunkVarType),
+diff --git a/gen/llvm.h b/gen/llvm.h
+index 5dfe68e9e9..45f051aa93 100644
 --- a/gen/llvm.h
 +++ b/gen/llvm.h
 @@ -35,7 +35,10 @@ using llvm::APFloat;
@@ -90,6 +127,8 @@
  #define GET_INTRINSIC_DECL(_X, _TY)                                              \
    (llvm::Intrinsic::getDeclaration(&gIR->module, llvm::Intrinsic::_X, _TY))
  #else
+diff --git a/gen/nested.cpp b/gen/nested.cpp
+index 0d22b5c071..66ea4e313b 100644
 --- a/gen/nested.cpp
 +++ b/gen/nested.cpp
 @@ -170,7 +170,7 @@ DValue *DtoNestedVariable(const Loc &loc, Type *astype, VarDeclaration *vd,
@@ -110,6 +149,8 @@
        }
      } else {
        frame = DtoRawAlloca(frameType, frameAlignment, ".frame");
+diff --git a/gen/optimizer.cpp b/gen/optimizer.cpp
+index 27d4026e2d..2159a7464e 100644
 --- a/gen/optimizer.cpp
 +++ b/gen/optimizer.cpp
 @@ -52,7 +52,11 @@
@@ -243,24 +284,34 @@
            FunctionPassManager fpm;
            addMemorySanitizerPass(mpm, fpm, level);
            mpm.addPass(createModuleToFunctionPassAdaptor(std::move(fpm)));
-@@ -520,7 +520,16 @@
-   OptimizationLevel level = getOptimizationLevel();
-
+@@ -523,9 +557,23 @@ void runOptimizationPasses(llvm::Module *M, llvm::TargetMachine *TM) {
+ 
    if (optLevelVal == 0) {
--    mpm = pb.buildO0DefaultPipeline(level, opts::isUsingLTO());
+ #ifdef IN_JITRT
+-    mpm = pb.buildO0DefaultPipeline(level, false);
++#if LDC_LLVM_VER >= 2000
++    const ThinOrFullLTOPhase ltoPrelink = ThinOrFullLTOPhase::None;
++#else
++    const bool ltoPrelink = false;
++#endif // LDC_LLVM_VER >= 2000
++    mpm = pb.buildO0DefaultPipeline(level, ltoPrelink);
++#else
 +#if LDC_LLVM_VER >= 2000
 +    const ThinOrFullLTOPhase ltoPrelink =
 +        opts::isUsingLTO()
 +            ? (opts::isUsingThinLTO() ? ThinOrFullLTOPhase::ThinLTOPreLink
 +                                      : ThinOrFullLTOPhase::FullLTOPreLink)
 +            : ThinOrFullLTOPhase::None;
-+#else
+ #else
+-    mpm = pb.buildO0DefaultPipeline(level, opts::isUsingLTO());
 +    const bool ltoPrelink = opts::isUsingLTO();
-+#endif
++#endif // LDC_LLVM_VER >= 2000
 +    mpm = pb.buildO0DefaultPipeline(level, ltoPrelink);
  #if LDC_LLVM_VER >= 1700
    } else if (opts::ltoFatObjects && opts::isUsingLTO()) {
      mpm = pb.buildFatLTODefaultPipeline(level,
+diff --git a/gen/toir.cpp b/gen/toir.cpp
+index c1dc6d5362..92d9535af1 100644
 --- a/gen/toir.cpp
 +++ b/gen/toir.cpp
 @@ -2814,7 +2814,7 @@ class ToElemVisitor : public Visitor {
@@ -272,6 +323,8 @@
                                    DtoGEP(irtc->getMemoryLLType(), val, 0u, 0));
  
        // TypeInfo ptr is first vtbl entry.
+diff --git a/gen/variable_lifetime.cpp b/gen/variable_lifetime.cpp
+index 488739cd83..e479238fa4 100644
 --- a/gen/variable_lifetime.cpp
 +++ b/gen/variable_lifetime.cpp
 @@ -16,6 +16,7 @@
@@ -293,6 +346,8 @@
  }
  
  void LocalVariableLifetimeAnnotator::pushScope() { scopes.emplace_back(); }
+diff --git a/ir/irtypefunction.cpp b/ir/irtypefunction.cpp
+index 93629b2acf..85eaed2e4f 100644
 --- a/ir/irtypefunction.cpp
 +++ b/ir/irtypefunction.cpp
 @@ -55,7 +55,7 @@ IrTypeDelegate *IrTypeDelegate::get(Type *t) {
@@ -304,6 +359,8 @@
    llvm::Type *types[] = {getOpaquePtrType(), fptr};
    LLStructType *lt = LLStructType::get(gIR->context(), types, false);
  
+diff --git a/ir/irtypestruct.cpp b/ir/irtypestruct.cpp
+index fba984498a..4ce3041224 100644
 --- a/ir/irtypestruct.cpp
 +++ b/ir/irtypestruct.cpp
 @@ -80,7 +80,7 @@ IrTypeStruct *IrTypeStruct::get(StructDeclaration *sd) {
@@ -315,6 +372,22 @@
  
      isaStruct(t->type)->setBody(body, false);
      VarGEPIndices v;
+diff --git a/runtime/jit-rt/cpp-so/jit_context.cpp b/runtime/jit-rt/cpp-so/jit_context.cpp
+index 8e6dc15d15..88dcac4d0e 100644
+--- a/runtime/jit-rt/cpp-so/jit_context.cpp
++++ b/runtime/jit-rt/cpp-so/jit_context.cpp
+@@ -18,6 +18,9 @@
+ 
+ #include "llvm/ADT/StringExtras.h"
+ #include "llvm/ExecutionEngine/JITLink/EHFrameSupport.h"
++#if LDC_LLVM_VER >= 2000 && defined(LDC_JITRT_USE_JITLINK)
++#include "llvm/ExecutionEngine/Orc/EHFrameRegistrationPlugin.h"
++#endif
+ #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+ #include "llvm/ExecutionEngine/Orc/ObjectTransformLayer.h"
+ #include "llvm/IR/LLVMContext.h"
+diff --git a/utils/gen_gccbuiltins.cpp b/utils/gen_gccbuiltins.cpp
+index e483abbe26..01a86ee8b3 100644
 --- a/utils/gen_gccbuiltins.cpp
 +++ b/utils/gen_gccbuiltins.cpp
 @@ -31,9 +31,15 @@ using namespace llvm;
