@@ -1,0 +1,16 @@
+--- a/CMakeLists.txt	2025-04-19 18:39:05.023485948 +0200
++++ b/CMakeLists.txt	2025-04-19 18:48:39.421402503 +0200
+@@ -1045,13 +1045,6 @@
+ endif()
+
+ # imports/includes
+-install(FILES runtime/druntime/src/object.d runtime/druntime/src/__importc_builtins.di runtime/druntime/src/importc.h DESTINATION ${INCLUDE_INSTALL_DIR})
+-foreach(p core etc ldc)
+-    install(DIRECTORY runtime/druntime/src/${p} DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
+-    install(DIRECTORY runtime/druntime/src/${p} DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.di")
+-endforeach()
+-install(DIRECTORY runtime/phobos/std DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
+-install(DIRECTORY runtime/phobos/etc DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
+ install(DIRECTORY runtime/jit-rt/d/ldc DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
+ install(FILES ${GCCBUILTINS} DESTINATION ${INCLUDE_INSTALL_DIR}/ldc)
+

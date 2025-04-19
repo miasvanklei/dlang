@@ -3,7 +3,7 @@
 
 EAPI=8
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..40} )
+DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..41} )
 LLVM_COMPAT=( {15..20} )
 PYTHON_COMPAT=( python3_{10..13} )
 inherit dlang-single llvm-r1 multiprocessing python-any-r1 toolchain-funcs cmake
@@ -18,7 +18,7 @@ MY_PV="${PV//_/-}"
 MY_P="ldc-${MY_PV}-src"
 SRC_URI="
 	https://github.com/ldc-developers/ldc/releases/download/v${MY_PV}/${MY_P}.tar.gz
-	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz -> ${P}-patches-${PATCH_VER}.tar.gz
+	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz
 "
 S=${WORKDIR}/${MY_P}
 LICENSE="BSD"
@@ -61,11 +61,7 @@ BDEPEND="
 IDEPEND=">=app-eselect/eselect-dlang-20241230"
 PDEPEND="dev-libs/ldc2-runtime:${SLOT}"
 
-INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${SLOT}" # /usr/lib/ldc2/1.40
-
-PATCHES=(
-	"${FILESDIR}/ldc2-1.40.0-llvm20.patch"
-)
+INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${SLOT}" # /usr/lib/ldc2/1.41
 
 python_check_deps() {
 	python_has_version "dev-python/lit[${PYTHON_USEDEP}]"
@@ -85,7 +81,13 @@ src_prepare() {
 	# Calls gcc directly
 	sed -i "s/gcc/$(tc-getCC)/" "${S}"/tests/dmd/runnable/importc-test1.sh || die
 
-	apply_patches
+	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/compiler"
+	eapply "${patches_dir}"/0001-lit-cfg-disable-gdb.patch
+	eapply "${patches_dir}"/0002-remove-dmd-common-int128-unittest.patch
+	eapply "${patches_dir}"/0003-dont-overwrite-user-flags.patch
+
+	eapply "${FILESDIR}/0006-1.41.0-disable-installing-includes.patch"
+	eapply "${FILESDIR}/0007-1.40.0-llvm20.patch"
 
 	cmake_src_prepare
 }
@@ -94,12 +96,12 @@ src_configure() {
 	local mycmakeargs=(
 		-DLDC_ENABLE_ASSERTIONS=$(usex debug ON OFF)
 		-DD_COMPILER="$(dlang_get_dmdw) $(dlang_get_dmdw_dcflags)"
-		-DCOMPILER_RT_BASE_DIR="${EPREFIX}"/usr/lib
+		-DCOMPILER_RT_BASE_DIR="${EPREFIX}"/usr/lib/clang
 		-DCOMPILER_RT_LIBDIR_OS=linux
 
 		-DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
 		-DPHOBOS_SYSTEM_ZLIB=ON
-		-DBUILD_RUNTIME=OFF
+		-DLDC_BUILD_RUNTIME=OFF
 		-DLDC_WITH_LLD=OFF
 		-DLDC_BUNDLE_LLVM_TOOLS=OFF
 		-DCOMPILE_D_MODULES_SEPARATELY=ON
@@ -150,10 +152,6 @@ src_test() {
 src_install() {
 	cmake_src_install
 
-	# ldc2.conf is installed as part of ldc2-runtime.
-	rm "${ED}/usr/lib/ldc2/${SLOT}/etc/ldc2.conf" || die
-	rmdir "${ED}/usr/lib/ldc2/${SLOT}/etc" || die
-
 	dosym -r "${INSTALL_PREFIX#${EPREFIX}}/bin/ldc2" "/usr/bin/ldc2-${SLOT}"
 	dosym -r "${INSTALL_PREFIX#${EPREFIX}}/bin/ldmd2" "/usr/bin/ldmd2-${SLOT}"
 }
@@ -164,15 +162,4 @@ pkg_postinst() {
 
 pkg_postrm() {
 	"${EROOT}"/usr/bin/eselect dlang update ldc2
-}
-
-apply_patches() {
-	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/compiler"
-	local patch
-	einfo "Applying patches from: ${patches_dir}"
-	while read -rd '' patch; do
-		eapply "${patch}"
-	done < <(find "${patches_dir}" -mindepth 1 -maxdepth 1 \
-				  -type f -name '*.patch' \
-				  -print0)
 }
