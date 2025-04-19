@@ -1,0 +1,21 @@
+--- a/runtime/CMakeLists.txt	2025-04-19 18:39:04.959486595 +0200
++++ b/runtime/CMakeLists.txt	2025-04-19 18:43:55.084548441 +0200
+@@ -866,6 +866,18 @@
+     endif()
+ endforeach()
+ 
++set(DRUNTIME_PACKAGES core etc ldc)
++
++install(FILES ${RUNTIME_DIR}/src/object.d ${RUNTIME_DIR}/src/__importc_builtins.di ${RUNTIME_DIR}/src/importc.h DESTINATION ${INCLUDE_INSTALL_DIR})
++foreach(p ${DRUNTIME_PACKAGES})
++    install(DIRECTORY ${RUNTIME_DIR}/src/${p} DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
++    install(DIRECTORY ${RUNTIME_DIR}/src/${p} DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.di")
++endforeach()
++if(PHOBOS2_DIR)
++    install(DIRECTORY ${PHOBOS2_DIR}/std DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
++    install(DIRECTORY ${PHOBOS2_DIR}/etc DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.d")
++endif()
++
+ 
+ #
+ # Test targets.

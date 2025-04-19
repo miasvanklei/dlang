@@ -16,7 +16,7 @@ MY_PV="${PV//_/-}"
 MY_P="ldc-${MY_PV}-src"
 SRC_URI="
 	https://github.com/ldc-developers/ldc/releases/download/v${MY_PV}/${MY_P}.tar.gz
-	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz -> ldc2-${PV}-patches-${PATCH_VER}.tar.gz
+	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz
 "
 S=${WORKDIR}/${MY_P}
 LICENSE="BSD"
@@ -26,7 +26,7 @@ LICENSE+=" Boost-1.0 BZIP2 ZLIB curl public-domain"
 # Only increase subslot in case of ABI breakage
 SLOT="$(ver_cut 1-2)/0"
 LDC2_SLOT="$(ver_cut 1-2)" # SLOT without subslot
-KEYWORDS="~amd64 ~x86"
+KEYWORDS="~amd64 ~arm64 ~x86"
 
 IUSE="static-libs test"
 RESTRICT="!test? ( test )"
@@ -49,11 +49,7 @@ IDEPEND=">=app-eselect/eselect-dlang-20241230"
 
 INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${LDC2_SLOT}" # /usr/lib/ldc2/1.40
 STRING_IMPORTS_DIR="${T}/views"
-LDC2_CONF_DIR="${WORKDIR}/conf"
-
-PATCHES=(
-	"${FILESDIR}"/ldc2-runtime-1.40.0-llvm-20.patch
-)
+LDC2_CONF_DIR="${INSTALL_PREFIX}/etc"
 
 src_prepare() {
 	mkdir -p "${STRING_IMPORTS_DIR}" || die
@@ -74,7 +70,12 @@ src_prepare() {
 	EOF
 	chmod +x "${T}/ldc2" "${T}/ldmd2" || die
 
-	apply_patches
+	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/runtime"
+	eapply "${patches_dir}"/0001-link-defaultlib-shared.patch
+	eapply "${patches_dir}"/0002-only-build-release-runtime.patch
+
+	eapply "${FILESDIR}"/0005-1.41.0-install-includes.patch
+	eapply "${FILESDIR}"/0006-1.40.0-llvm-20.patch
 
 	cmake_src_prepare
 }
@@ -102,6 +103,7 @@ multilib_src_configure() {
 		-DPHOBOS_SYSTEM_ZLIB=ON
 		-DLDC_EXE_FULL="${T}/ldc2"
 		-DLDMD_EXE_FULL="${T}/ldmd2"
+		-DLDC_WITH_LLD=OFF
 		# needed for the sake of EPREFIX
 		-DPHOBOS2_EXTRA_FLAGS="-J;${STRING_IMPORTS_DIR};-d-version=TZDatabaseDir"
 		# ${EDC}                   # ldc2-1.40
@@ -118,7 +120,7 @@ multilib_src_configure() {
 		)
 	else
 		# we save the config file from the native build
-		mycmakeargs+=(-DCONFIG_FILE_OUTPUT_DIR="${LDC2_CONF_DIR}")
+		mycmakeargs+=(-DCONF_INST_DIR="${LDC2_CONF_DIR}")
 	fi
 
 	CMAKE_USE_DIR="${S}/runtime" cmake_src_configure
@@ -176,7 +178,6 @@ multilib_src_install() {
 multilib_src_install_all() {
 	local ldc2_etc="${INSTALL_PREFIX#"${EPREFIX}"}/etc"
 	insinto "${ldc2_etc}"
-	newins "${LDC2_CONF_DIR}"/ldc2_install.conf ldc2.conf
 	dosym -r "${ldc2_etc}"/ldc2.conf "/etc/ldc2/${LDC2_SLOT}.conf"
 }
 
@@ -186,17 +187,6 @@ pkg_postinst() {
 
 pkg_postrm() {
 	"${EROOT}"/usr/bin/eselect dlang update ldc2
-}
-
-apply_patches() {
-	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/runtime"
-	einfo "Applying patches from: ${patches_dir}"
-	local patch
-	while read -rd '' patch; do
-		eapply "${patch}"
-	done < <(find "${patches_dir}" -mindepth 1 -maxdepth 1 \
-				  -type f -name '*.patch' \
-				  -print0)
 }
 
 # Create symlinks to libdruntime-ldc-shared et al from libdruntime-ldc-debug-shared
