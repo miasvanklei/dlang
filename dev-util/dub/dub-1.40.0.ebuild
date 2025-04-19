@@ -3,7 +3,7 @@
 
 EAPI=8
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..40} )
+DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..41} )
 DUB_DEPENDENCIES=(
 	gitcompatibledubpackage@1.0.1
 	gitcompatibledubpackage@1.0.4
