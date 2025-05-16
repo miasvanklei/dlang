@@ -21,7 +21,7 @@ S="${WORKDIR}/DCD-${MY_PV}"
 LICENSE="GPL-3"
 
 SLOT="0"
-KEYWORDS="~amd64 ~arm64 ~x86"
+KEYWORDS="~amd64 ~x86"
 
 IUSE="systemd"
 
@@ -29,7 +29,7 @@ PATCHES=(
 	"${FILESDIR}/pr-774.patch"
 )
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..41} )
+DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..40} )
 
 inherit dlang-single systemd bash-completion-r1
 
