@@ -4,7 +4,7 @@
 EAPI=8
 
 DESCRIPTION="Ancilliary tools for the D programming language compiler"
-HOMEPAGE="http://dlang.org/"
+HOMEPAGE="https://dlang.org/"
 
 DLANG_SLOT="$(ver_cut 1-2)"
 
@@ -21,13 +21,13 @@ S="${WORKDIR}/tools-${VERSION}"
 LICENSE="Boost-1.0"
 
 SLOT="0"
-KEYWORDS="~amd64 ~arm64 ~x86"
+KEYWORDS="~amd64 ~x86"
 
 TOOLS="ddemangle detab dustmite rdmd"
 IUSE="+ddemangle detab dustmite +rdmd test"
 RESTRICT="!test? ( test )"
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..41} )
+DLANG_COMPAT=( dmd-2_{106..111} gdc-1{3..5} ldc2-1_{35..40} )
 
 inherit desktop dlang-single xdg-utils
 
@@ -59,9 +59,7 @@ src_test() {
 		./dustmite_ut || die 'dustmite unittests failed'
 	fi
 	if use rdmd; then
-		# Add an empty main since gdc doesn't support -main
-		echo 'void main(){}' >> rdmd.d
-		dlang_compile_bin rdmd_ut rdmd.d $(dlang_get_unittest_flag)
+		dlang_compile_bin rdmd_ut rdmd.d $(dlang_get_unittest_flag) $(dlang_get_main_flag)
 		./rdmd_ut || die 'rdmd unittests failed'
 
 		# These tests fail with gdc, due to some quirks.
