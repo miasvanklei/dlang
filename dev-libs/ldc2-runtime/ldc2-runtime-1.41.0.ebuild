@@ -75,7 +75,6 @@ src_prepare() {
 	eapply "${patches_dir}"/0002-only-build-release-runtime.patch
 
 	eapply "${FILESDIR}"/0005-1.41.0-install-includes.patch
-	eapply "${FILESDIR}"/0006-1.40.0-llvm-20.patch
 
 	cmake_src_prepare
 }
