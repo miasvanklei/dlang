@@ -87,6 +87,7 @@ src_prepare() {
 	eapply "${patches_dir}"/0003-dont-overwrite-user-flags.patch
 
 	eapply "${FILESDIR}/0006-1.41.0-disable-installing-includes.patch"
+	eapply "${FILESDIR}/llvm-21.patch"
 
 	cmake_src_prepare
 }
