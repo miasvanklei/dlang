@@ -3,7 +3,7 @@
 
 EAPI=8
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3,4} ldc2-1_{35..41} )
+DLANG_COMPAT=( dmd-2_{106..111} gdc-1{3..5} ldc2-1_{35..41} )
 DUB_DEPENDENCIES=(
 	gitcompatibledubpackage@1.0.1
 	gitcompatibledubpackage@1.0.4
@@ -15,8 +15,10 @@ DESCRIPTION="Package and build management system for D"
 HOMEPAGE="https://code.dlang.org/"
 
 GITHUB_URI="https://codeload.github.com/dlang"
+man_pages_uri="https://github.com/the-horo/distfiles/releases/download/init"
 SRC_URI="
 	${GITHUB_URI}/${PN}/tar.gz/v${PV} -> ${P}.tar.gz
+	${man_pages_uri}/${P}-man-pages.tar.gz
 	test? ( ${DUB_DEPENDENCIES_URIS} )
 "
 LICENSE="MIT"
@@ -31,74 +33,69 @@ RDEPEND+=" virtual/pkgconfig"
 
 src_unpack() {
 	dub_gen_settings
-	unpack "${P}.tar.gz"
+	unpack "${P}.tar.gz" "${P}-man-pages.tar.gz"
 	use test && dub_copy_dependencies_locally "${DUB_DEPENDENCIES[@]}"
 }
 
-src_configure() {
-	# gdc generates unaligned memory accesses with optimizations and avx
-	# enabled. It has been fixed upstream. See:
-	# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=114171
-	# Fixed in >=sys-devel/gcc-13.2.1_p20240330. Adding -mno-sse2 makes
-	# tests fail so defer to removing the common way users get avx
-	# instructions enabled (-march=native) and warn them.
-	if [[ ${ARCH} == amd64 && ${EDC} == gdc-13 && ${DCFLAGS} == *-march=native* ]]; then
-		ewarn "<sys-devel/gcc-13.2.1_p20240330 is known to generate invalid code"
-		ewarn "on amd64 with certain flags. For this reason -march=native will be"
-		ewarn "removed from your flags. Feel free to use -march=<cpu> to bypass this"
-		ewarn "precaution."
-		ewarn ""
-		ewarn "See also: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=114171"
-		dlang-filter-dflags "gdc*" "-march=native"
-	fi
-}
-
-src_compile() {
-	local imports=source versions="DubApplication DubUseCurl"
-	dlang_compile_bin bin/dub $(<build-files.txt)
-
-	# Generate man pages. Rebuilds dub so put it behind a USE flag.
-	if use doc; then
-		einfo "Generating man pages"
-		# You're supposed to be able to do ./bin/dub scrips/man/gen_man.d
-		# but it gives linking errors with gdc.
-
-		# $imports is set up above.
-		versions=DubUseCurl
-		dlang_compile_bin scripts/man/gen_man{,.d} \
-						  $(sed '/^source\/app.d$/d' build-files.txt)
-		./scripts/man/gen_man || die "Could not generate man pages"
-	fi
-}
-
-src_test() {
-	# Setup the environment for the tests.
-	local -x DUB="${S}/bin/dub"
-
+src_prepare() {
 	# Note, disabling tests is possible yet very hard. You have to
 	# create a bash variable containing a regex (to be used in =~) that
 	# matches all the tests that you want *to* run. It's probably easier
 	# to delete the subdirectory under ${S}/test.
 
 	# Tries to connect to github.com and fails due to the network sandbox
-	rm -rf "${S}/test/git-dependency" || die
-	# Doesn't work on non amd64/x86
-	if [[ ${ARCH} != @(amd64|x86) ]]; then
-		rm -rf test/issue1447-build-settings-vars || die
+	rm -r "${S}/test/git-dependency" || die
+
+	# gdc doesn't support #include's in its importC implementation.
+	if [[ ${EDC} == gdc* ]]; then
+		rm -r "${S}/test/use-c-sources" || die
+		rm -r "${S}/test/issue2698-cimportpaths-broken-with-dmd-ldc" || die
 	fi
 
-	# gdc-13 doesn't support #include's in its importC implementation.
-	if [[ ${EDC} == gdc-13 ]]; then
-		rm -rf "${S}/test/use-c-sources" || die
+	# $(basename DC) not matching ^(dmd|ldc2|gdc)$ makes the test runner
+	# not skip known failures, so skip them here instead
+	if [[ ${EDC} == dmd* ]]; then
+		rm -r test/issue2258-dynLib-exe-dep || die
+	fi
+	if [[ ${EDC} != ldc2* ]]; then
+		rm -r test/depen-build-settings || die
 	fi
 
-	# See https://bugs.gentoo.org/921581 we have to remove -op (preserve
-	# source path for output files) from the flags lest the sandbox
-	# trips us up. This shouldn't be a problem anymore with dlang-single.
-	dlang-filter-dflags "*" "--op" "-op"
+	default
+}
 
-	# Use -Wno-error or equivalent
-	local -x DFLAGS="${DCFLAGS} ${DLANG_LDFLAGS} $(dlang_get_wno_error_flag)"
+src_compile() {
+	# dmd misscompilation with -O
+	# https://github.com/dlang/dmd/issues/21400
+	dlang-filter-dflags dmd* -O*
+
+	local imports=source versions="DubApplication DubUseCurl"
+	dlang_compile_bin bin/dub $(<build-files.txt)
+}
+
+src_test() {
+	# Setup the environment for the tests.
+	local -x DUB="${S}/bin/dub"
+
+	# Specifying DFLAGS in the environment disables unittests. Outside
+	# of a better solution, put them in a wrapper file
+	local dflags=( ${DCFLAGS} ${DLANG_LDFLAGS} $(dlang_get_wno_error_flag) )
+
+	[[ ${EDC} == gdc* ]] && dflags+=( -fall-instantiations )
+
+	# -g causes ICE, only on tests
+	# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=119817
+	[[ ${EDC} =~ gdc-1(3|4) ]] && dflags+=( -g0 )
+
+	mkdir -p "${T}/${PN}"
+
+	local wdc="${T}/${PN}/${EDC}"
+	cat > "${wdc}" <<-EOF || die
+	#!${BROOT}/bin/sh
+	${DC} "\${@}" ${dflags[*]}
+	EOF
+	chmod +x "${wdc}"
+	local -x DC="${wdc}"
 
 	# Run the unittests in the source files.
 	"${DUB}" test --verbose -c application || die
@@ -117,8 +114,7 @@ src_install() {
 	dobin bin/dub
 	dodoc README.md
 
-	# Make sure there are no man files in any other section.
-	use doc && doman scripts/man/*.1
+	doman "${WORKDIR}/${P}-man-pages"/*
 
 	newbashcomp scripts/bash-completion/${PN}.bash ${PN}
 	dozshcomp scripts/zsh-completion/_${PN}

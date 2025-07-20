@@ -5,8 +5,10 @@ EAPI=8
 
 MY_PV="$(ver_rs 3 - 4 .)" # 0.8.0_beta15 -> 0.8.0-beta.15
 # gdc currently fails due to a bug in mir-cpuid, see: https://github.com/libmir/mir-cpuid/pull/46
-DLANG_COMPAT=( dmd-2_{106..109} ldc2-1_{35..41} )
+DLANG_COMPAT=( dmd-2_{106..111} ldc2-1_{35..41} )
 DUB_DEPENDENCIES=(
+	"serve-d@${MY_PV}"
+
 	"automem@0.6.10"
 	"cachetools@0.4.1"
 	"dcd@0.16.0-beta.2"
@@ -36,7 +38,6 @@ DUB_DEPENDENCIES=(
 	"rm-rf@0.1.0"
 	"sdlfmt@0.1.1"
 	"sdlite@1.1.2"
-	"serve-d@0.8.0-beta.18"
 	"silly@1.1.1"
 	"standardpaths@0.8.2"
 	"stdx-allocator@2.77.5"
@@ -79,6 +80,19 @@ src_unpack() {
 	use test && dub_copy_dependencies_locally "${DUB_TEST_DEP}"
 }
 
+src_prepare() {
+	# Tries to update dependencies timing out for each one which sums up
+	# to about 4 minutes of doing nothing. There is no direct way to
+	# configure the code not to contact https://code.dlang.org
+	rm -r test/tc_dub || die
+	# Uses basename to run compiler binaries which happens to work since
+	# dlang-utils.eclass creates symlinks for them. Like tc_dub spends
+	# ~40 seconds waiting for code.dlang.org
+	rm -r test/tc_dub_empty || die
+
+	default
+}
+
 src_configure() {
 	# There's an issue with ldc that when -mcpu=native is specified you
 	# get an llvm stack trace. It seems to be related to the use of
@@ -112,15 +126,6 @@ src_test() {
 
 	# A simplified version for ${S}/test/runtests.sh
 	pushd test > /dev/null || die
-
-	# Tries to update dependencies timing out for each one which sums up
-	# to about 4 minutes of doing nothing. There is no direct way to
-	# configure the code not to contact https://code.dlang.org
-	rm -rf tc_dub || die
-	# Uses basename to run compiler binaries which happens to work since
-	# dlang-utils.eclass creates symlinks for them. Like tc_dub spends
-	# ~40 seconds waiting for code.dlang.org
-	rm -rf tc_dub_empty || die
 
 	local testcase
 	for testcase in tc*; do
