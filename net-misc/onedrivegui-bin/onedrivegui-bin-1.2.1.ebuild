@@ -10,7 +10,7 @@ HOMEPAGE="https://github.com/bpozdena/OneDriveGUI"
 
 inherit desktop xdg-utils
 SRC_URI="
-	https://github.com/bpozdena/${M_PN}/releases/download/v${PV}/${M_PN}-${PV}_fix150-x86_64.AppImage -> ${P}.AppImage
+	https://github.com/bpozdena/${M_PN}/releases/download/v${PV}/${M_PN}-${PV}-x86_64.AppImage -> ${P}.AppImage
 	https://raw.githubusercontent.com/bpozdena/${M_PN}/refs/tags/v${PV}/src/resources/images/${M_PN}.png -> OneDriveGUI-${PV}.png
 "
 S="${WORKDIR}"
@@ -19,7 +19,7 @@ SLOT="0"
 KEYWORDS="-* ~amd64"
 
 RDEPEND="
-	<net-misc/onedrive-2.5
+	>=net-misc/onedrive-2.5.6
 	!net-misc/onedrivegui
 	sys-fs/fuse:0
 "
