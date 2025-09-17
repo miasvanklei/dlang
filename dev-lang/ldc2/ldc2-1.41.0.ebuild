@@ -18,7 +18,7 @@ MY_PV="${PV//_/-}"
 MY_P="ldc-${MY_PV}-src"
 SRC_URI="
 	https://github.com/ldc-developers/ldc/releases/download/v${MY_PV}/${MY_P}.tar.gz
-	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz
+	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz -> ${PN}-${PATCH_TAG_NAME}.tar.gz
 "
 S=${WORKDIR}/${MY_P}
 LICENSE="BSD"
