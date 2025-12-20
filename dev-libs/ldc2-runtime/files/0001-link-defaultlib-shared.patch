@@ -1,0 +1,11 @@
+--- a/runtime/CMakeLists.txt	2025-12-20 20:38:26.374839863 +0100
++++ b/runtime/CMakeLists.txt	2025-12-20 20:38:44.210657001 +0100
+@@ -264,7 +264,7 @@
+ 
+ # Only have either shared or static libs?
+ # Then explicitly default to linking against them via default LDC switch.
+-if(${BUILD_SHARED_LIBS} STREQUAL "ON")
++if(NOT ${BUILD_SHARED_LIBS} STREQUAL "OFF")
+     set(switches "-link-defaultlib-shared")
+ elseif(${BUILD_SHARED_LIBS} STREQUAL "OFF")
+     set(switches "-link-defaultlib-shared=false")

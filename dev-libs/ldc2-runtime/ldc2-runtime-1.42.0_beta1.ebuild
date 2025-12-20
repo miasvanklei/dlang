@@ -71,11 +71,10 @@ src_prepare() {
 	chmod +x "${T}/ldc2" "${T}/ldmd2" || die
 
 	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/runtime"
-	eapply "${patches_dir}"/0001-link-defaultlib-shared.patch
 	eapply "${patches_dir}"/0002-only-build-release-runtime.patch
 
+	eapply "${FILESDIR}"/0001-link-defaultlib-shared.patch
 	eapply "${FILESDIR}"/0005-1.41.0-install-includes.patch
-	eapply "${FILESDIR}"/llvm-21.patch
 
 	cmake_src_prepare
 }
