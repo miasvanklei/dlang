@@ -5,7 +5,7 @@ EAPI=8
 
 MY_PV="$(ver_rs 3 - 4 .)" # 0.8.0_beta15 -> 0.8.0-beta.15
 # gdc currently fails due to a bug in mir-cpuid, see: https://github.com/libmir/mir-cpuid/pull/46
-DLANG_COMPAT=( dmd-2_{106..111} ldc2-1_{35..41} )
+DLANG_COMPAT=( dmd-2_{106..111} ldc2-1_{35..42} )
 DUB_DEPENDENCIES=(
 	"serve-d@${MY_PV}"
 
