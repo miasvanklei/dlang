@@ -1,5 +1,13 @@
 --- a/runtime/CMakeLists.txt	2025-04-19 18:39:04.959486595 +0200
 +++ b/runtime/CMakeLists.txt	2025-04-19 18:43:55.084548441 +0200
+@@ -38,6 +38,7 @@
+ set(RT_SUPPORT_SANITIZERS OFF                                 CACHE BOOL   "Build runtime libraries with sanitizer support (e.g. for AddressSanitizer)")
+
+ set(CMAKE_INSTALL_LIBDIR ${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX})
++set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include/d CACHE PATH "Path to install D modules to")
+
+ set(DRUNTIME_EXTRA_FLAGS          )
+ set(DRUNTIME_EXTRA_UNITTEST_FLAGS -d-version=CoreUnittest -unittest -checkaction=context -linkonce-templates)
 @@ -866,6 +866,18 @@
      endif()
  endforeach()
