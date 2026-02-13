@@ -4,7 +4,7 @@
 EAPI=8
 
 DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..42} )
-LLVM_COMPAT=( {15..21} )
+LLVM_COMPAT=( {15..22} )
 PYTHON_COMPAT=( python3_{10..13} )
 inherit dlang-single llvm-r1 multiprocessing python-any-r1 toolchain-funcs cmake
 
@@ -87,6 +87,8 @@ src_prepare() {
 	eapply "${patches_dir}"/0003-dont-overwrite-user-flags.patch
 
 	eapply "${FILESDIR}/0006-1.41.0-disable-installing-includes.patch"
+
+	eapply "${FILESDIR}/llvm-22.patch"
 
 	cmake_src_prepare
 }
