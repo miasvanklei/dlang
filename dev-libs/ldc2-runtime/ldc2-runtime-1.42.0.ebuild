@@ -75,6 +75,7 @@ src_prepare() {
 
 	eapply "${FILESDIR}"/0001-link-defaultlib-shared.patch
 	eapply "${FILESDIR}"/0005-1.41.0-install-includes.patch
+	eapply "${FILESDIR}"/llvm-22.patch
 
 	cmake_src_prepare
 }
