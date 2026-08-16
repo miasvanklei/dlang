@@ -84,8 +84,8 @@ readonly _DLANG_LDC2_FRONTENDS=(
 	"1.38 2.108 ~amd64 ~arm64 ~x86"
 	"1.39 2.109 ~amd64 ~arm64 ~x86"
 	"1.40 2.110 ~amd64 ~arm64 ~x86"
-	"1.41 2.111 ~amd64 ~arm64 ~x86"
-	"1.42 2.112 ~amd64 ~arm64 ~x86"
+	"1.42 2.113 ~amd64 ~arm64 ~x86"
+	"1.43 2.113 ~amd64 ~arm64 ~x86"
 )
 
 # @FUNCTION: _dlang_accumulate_implementations
