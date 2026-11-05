@@ -1,4 +1,4 @@
-# Copyright 2025 Gentoo Authors
+# Copyright 2025-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -6,8 +6,8 @@ EAPI=8
 DLANG_COMPAT=( ldc2-1_$(ver_cut 2) )
 inherit dlang-single multilib cmake-multilib
 
-PATCH_VER=1
-PATCH_TAG_NAME="1.40.0-patches-${PATCH_VER}"
+PATCH_VER=2
+PATCH_TAG_NAME="1.42.0-patches-${PATCH_VER}"
 PATCH_URL_BASE="https://github.com/the-horo/ldc-patches/archive/refs/tags"
 
 DESCRIPTION="LLVM D Compiler"
@@ -16,7 +16,7 @@ MY_PV="${PV//_/-}"
 MY_P="ldc-${MY_PV}-src"
 SRC_URI="
 	https://github.com/ldc-developers/ldc/releases/download/v${MY_PV}/${MY_P}.tar.gz
-	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz
+	${PATCH_URL_BASE}/${PATCH_TAG_NAME}.tar.gz -> ldc2-${PATCH_TAG_NAME}.tar.gz
 "
 S=${WORKDIR}/${MY_P}
 LICENSE="BSD"
@@ -33,12 +33,12 @@ RESTRICT="!test? ( test )"
 
 REQUIRED_USE=${DLANG_REQUIRED_USE}
 RDEPEND="
-	sys-libs/zlib:0/1
+	virtual/zlib:0/1
 	net-misc/curl[${MULTILIB_USEDEP}]
 "
 # curl is dlopened. The tests do need it though.
 DEPEND="
-	sys-libs/zlib:0/1
+	virtual/zlib:0/1
 	test? (
 		  net-misc/curl[${MULTILIB_USEDEP}]
 	)
@@ -49,7 +49,7 @@ IDEPEND=">=app-eselect/eselect-dlang-20241230"
 
 INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${LDC2_SLOT}" # /usr/lib/ldc2/1.40
 STRING_IMPORTS_DIR="${T}/views"
-LDC2_CONF_DIR="${INSTALL_PREFIX}/etc"
+LDC2_CONF_DIR="${WORKDIR}/conf"
 
 src_prepare() {
 	mkdir -p "${STRING_IMPORTS_DIR}" || die
@@ -57,43 +57,30 @@ src_prepare() {
 	# std.datetime.timezone default search path, instead of /usr/share/zoneinfo/
 	echo "${EPREFIX}/usr/share/zoneinfo/" > "${tzpath}" || die
 
+	apply_patches
+
+	cmake_src_prepare
+
 	# Create wrappers for ldc2 because the cmake file only supports
 	# passing arguments to the compiler at the end of the command line.
 	# This breaks the -conf= argument that we want to use.
 	cat <<-EOF > "${T}/ldc2" || die
 	#!/bin/sh
-	exec "${DC}" -conf="${LDC2_CONF_DIR}/ldc2.conf" "\${@}"
+	exec "${DC}" -conf="${LDC2_CONF_DIR}" "\${@}"
 	EOF
 	cat <<-EOF > "${T}/ldmd2" || die
 	#!/bin/sh
-	exec "$(dlang_get_dmdw)" -conf="${LDC2_CONF_DIR}/ldc2.conf" "\${@}"
+	exec "$(dlang_get_dmdw)" -conf="${LDC2_CONF_DIR}" "\${@}"
 	EOF
 	chmod +x "${T}/ldc2" "${T}/ldmd2" || die
-
-	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/runtime"
-	eapply "${patches_dir}"/0002-only-build-release-runtime.patch
-
-	eapply "${FILESDIR}"/0001-link-defaultlib-shared.patch
-	eapply "${FILESDIR}"/0005-1.41.0-install-includes.patch
-
-	cmake_src_prepare
-}
-
-src_configure() {
-	add_multilib_sections() {
-		multilib_is_native_abi && return
-		add_multilib_section "${S}/ldc2_phobos.conf.in" "${BUILD_DIR}/$(get_libdir)"
-		add_multilib_section "${S}/ldc2_install.conf.in" "${INSTALL_PREFIX}/$(get_libdir)"
-	}
-	multilib_foreach_abi add_multilib_sections
-
-	multilib-minimal_src_configure
+	# Needs to come after cmake_src_prepare because it uses ${BUILD_DIR}
+	make_conf_file
 }
 
 multilib_src_configure() {
 	local mycmakeargs=(
 		-DBUILD_SHARED_LIBS=$(usex static-libs BOTH ON)
-		# flags for the runtime, the need to be separated by ;
+		# flags for the runtime, they need to be separated by ;
 		-DD_FLAGS_RELEASE="${DCFLAGS// /;}"
 		# Slight improvements with this
 		-DCOMPILE_ALL_D_FILES_AT_ONCE=OFF
@@ -102,7 +89,6 @@ multilib_src_configure() {
 		-DPHOBOS_SYSTEM_ZLIB=ON
 		-DLDC_EXE_FULL="${T}/ldc2"
 		-DLDMD_EXE_FULL="${T}/ldmd2"
-		-DLDC_WITH_LLD=OFF
 		# needed for the sake of EPREFIX
 		-DPHOBOS2_EXTRA_FLAGS="-J;${STRING_IMPORTS_DIR};-d-version=TZDatabaseDir"
 		# ${EDC}                   # ldc2-1.40
@@ -113,16 +99,21 @@ multilib_src_configure() {
 	)
 	if ! multilib_is_native_abi; then
 		# configure multilib flags
+		local triple_without_vendor=$(sed -e 's/-[^-]*/-.*/' <<<"${CHOST}") # i686-.*-linux-gnu
 		mycmakeargs+=(
 			-DD_EXTRA_FLAGS="$(dlang_get_model_flag)"
 			-DRT_CFLAGS="$(get_abi_CFLAGS)"
+			-DRT_CONF_BASE_NAME="55-target-$(get_libdir)"
+			-DRT_CONF_TRIPLE_REGEX="${triple_without_vendor}"
 		)
-	else
-		# we save the config file from the native build
-		mycmakeargs+=(-DCONF_INST_DIR="${LDC2_CONF_DIR}")
 	fi
 
 	CMAKE_USE_DIR="${S}/runtime" cmake_src_configure
+}
+
+multilib_src_compile() {
+	cmake_src_compile
+	symlinks_release_runtime_to_debug "${BUILD_DIR}"
 }
 
 multilib_src_test() {
@@ -135,12 +126,6 @@ multilib_src_test() {
 	cmake_src_compile all-test-runners
 
 	local CMAKE_SKIP_TESTS=(
-		# These require valgrind
-		druntime-test-gc
-		druntime-test-valgrind
-		# Should be fixed by https://github.com/dlang/dmd/pull/16851
-		# Drop the above once the changes are merged into ldc2
-
 		# This one fails due to an uncaught error, probably due to the
 		# sandbox.
 		druntime-test-cycles
@@ -159,25 +144,12 @@ multilib_src_test() {
 	TMPDIR="." cmake_src_test -R std.socket
 	CMAKE_SKIP_TESTS+=( std.socket )
 
-	# We don't want to run gdb or valgrind tests
-	local -x GDB=gdb-dont-find-me VALGRIND=valgrind-dont-find-me
 	cmake_src_test
-}
-
-multilib_src_compile() {
-	cmake_src_compile
-	symlinks_release_runtime_to_debug "${BUILD_DIR}"
 }
 
 multilib_src_install() {
 	cmake_src_install
 	symlinks_release_runtime_to_debug "${D}/${INSTALL_PREFIX}"
-}
-
-multilib_src_install_all() {
-	local ldc2_etc="${INSTALL_PREFIX#"${EPREFIX}"}/etc"
-	insinto "${ldc2_etc}"
-	dosym -r "${ldc2_etc}"/ldc2.conf "/etc/ldc2/${LDC2_SLOT}.conf"
 }
 
 pkg_postinst() {
@@ -186,6 +158,17 @@ pkg_postinst() {
 
 pkg_postrm() {
 	"${EROOT}"/usr/bin/eselect dlang update ldc2
+}
+
+apply_patches() {
+	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/runtime"
+	einfo "Applying patches from: ${patches_dir}"
+
+	eapply "${patches_dir}/0001-only-build-release-runtime.patch"
+	eapply "${patches_dir}/0002-eprefix-druntime-test-shared-link-path-fix.patch"
+	eapply "${patches_dir}/0004-skip-gdb-and-valgrind-tests.patch"
+
+	eapply "${FILESDIR}/0005-1.41.0-install-includes.patch"
 }
 
 # Create symlinks to libdruntime-ldc-shared et al from libdruntime-ldc-debug-shared
@@ -205,26 +188,41 @@ symlinks_release_runtime_to_debug() {
 			# and symlink them:
 			# ${file}                 == libdruntime-ldc-shared
 			# ${file/-ldc/-ldc-debug} == libdruntime-ldc-debug-shared
-			ln -sf "${file}" "${1}/${file/-ldc/-ldc-debug}" || die
+			ln -s "${file}" "${1}/${file/-ldc/-ldc-debug}" || die
 		done < <("${find_cmd[@]}")
 	}
 
 	rename_in_dir "${1}/$(get_libdir)"
 }
 
-# USAGE: <ldc2_conf_file> <full_libdir>
-add_multilib_section() {
-	# NOTE: We're missing compiler-rt's libdir
-	local filepath=${1} libdir=${2}
-	local triple_without_vendor=$(sed -e 's/-[^-]*/-.*/' <<<"${CHOST}") # i686-.*-linux-gnu
-	cat >> "${filepath}" <<EOF || die "Could not add multilib section"
+# Create a ldc2.conf that uses the installed dev-lang/ldc2 headers and
+# built libraries
+make_conf_file() {
+	mkdir -p "${LDC2_CONF_DIR}" || die
+	cat <<-EOF > "${LDC2_CONF_DIR}/30-default.conf" || die
+	default: {
+		post-switches = [
+			"-I${BROOT}/usr/lib/ldc2/${LDC2_SLOT}/include/d",
+		];
+		switches = [
+			"-defaultlib=phobos2-ldc,druntime-ldc",
+			"-link-defaultlib-shared",
+		];
+	}
+	EOF
 
-"${triple_without_vendor}":
-{
-	lib-dirs = [
-		"${libdir}",
-	];
-	rpath = "${libdir}";
-};
-EOF
+	add_multilib_libdir_to_config() {
+		local triple_without_vendor=$(sed -e 's/-[^-]*/-.*/' <<<"${CHOST}") # i686-.*-linux-gnu
+		local libdir="${BUILD_DIR}/$(get_libdir)"
+		cat <<-EOF > "${LDC2_CONF_DIR}/55-target-$(get_libdir).conf" || die
+		"${triple_without_vendor}":
+		{
+			lib-dirs = [
+				"${libdir}",
+			];
+			rpath = "${libdir}",
+		}
+		EOF
+	}
+	multilib_foreach_abi add_multilib_libdir_to_config
 }
