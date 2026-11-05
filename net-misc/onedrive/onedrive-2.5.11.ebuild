@@ -3,8 +3,8 @@
 
 EAPI=8
 
-DLANG_COMPAT=( dmd-2_{106..111} gdc-15 ldc2-1_{35..40} )
-inherit dlang-single optfeature prefix shell-completion systemd
+DLANG_COMPAT=( dmd-2_{107..111} gdc-15 ldc2-1_{36..40} )
+inherit dlang-single optfeature prefix shell-completion systemd xdg-utils
 
 DESCRIPTION="Free Client for OneDrive on Linux"
 HOMEPAGE="https://abraunegg.github.io/"
@@ -66,6 +66,7 @@ src_install() {
 }
 
 pkg_postinst() {
+	xdg_icon_cache_update
 	elog "OneDrive Free Client needs to be authorized to access your data before the"
 	elog "first use. To do so, run onedrive in a terminal for the user in question and"
 	elog "follow the steps on screen."
@@ -80,4 +81,8 @@ pkg_postinst() {
 		fi
 	done
 	optfeature "Single Sign-On via Intune" sys-apps/intune-portal
+}
+
+pkg_postrm() {
+	xdg_icon_cache_update
 }
