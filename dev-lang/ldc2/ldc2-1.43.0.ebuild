@@ -4,7 +4,7 @@
 EAPI=8
 
 DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..43} )
-LLVM_COMPAT=( {18..23} )
+LLVM_COMPAT=( {19..23} )
 PYTHON_COMPAT=( python3_{12..14} )
 inherit dlang-single llvm-r1 multiprocessing python-any-r1 toolchain-funcs cmake
 
