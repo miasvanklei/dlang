@@ -1,15 +1,15 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-DLANG_COMPAT=( dmd-2_{106..109} gdc-1{3..4} ldc2-1_{35..43} )
+DLANG_COMPAT=( dmd-2_{107..111} gdc-1{3..5} ldc2-1_{36..40} ldc2-1_{42,43} )
 LLVM_COMPAT=( {19..23} )
 PYTHON_COMPAT=( python3_{12..14} )
-inherit dlang-single llvm-r1 multiprocessing python-any-r1 toolchain-funcs cmake
+inherit dlang-single llvm-r2 multiprocessing python-any-r1 toolchain-funcs cmake
 
-PATCH_VER=1
-PATCH_TAG_NAME="1.40.0-patches-${PATCH_VER}"
+PATCH_VER=2
+PATCH_TAG_NAME="1.42.0-patches-${PATCH_VER}"
 PATCH_URL_BASE="https://github.com/the-horo/ldc-patches/archive/refs/tags"
 
 DESCRIPTION="LLVM D Compiler"
@@ -61,7 +61,7 @@ BDEPEND="
 IDEPEND=">=app-eselect/eselect-dlang-20241230"
 PDEPEND="dev-libs/ldc2-runtime:${SLOT}"
 
-INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${SLOT}" # /usr/lib/ldc2/1.41
+INSTALL_PREFIX="${EPREFIX}/usr/lib/ldc2/${SLOT}" # /usr/lib/ldc2/1.40
 
 python_check_deps() {
 	python_has_version "dev-python/lit[${PYTHON_USEDEP}]"
@@ -69,24 +69,19 @@ python_check_deps() {
 
 pkg_setup() {
 	dlang_setup
-	llvm-r1_pkg_setup
+	llvm-r2_pkg_setup
 	use test && python_setup
 }
 
 src_prepare() {
 	# Disable GDB tests by passing GDB_FLAGS=OFF
 	# Put this here to avoid trigerring reconfigurations later on.
-	sed -i 's/\(GDB_FLAGS=\)\S\+/\1OFF/' "${S}"/tests/dmd/CMakeLists.txt
+	sed -i 's/\(GDB_FLAGS=\)\S\+/\1OFF/' "${S}"/tests/dmd/CMakeLists.txt || die
 
 	# Calls gcc directly
 	sed -i "s/gcc/$(tc-getCC)/" "${S}"/tests/dmd/runnable/importc-test1.sh || die
 
-	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}/compiler"
-	eapply "${patches_dir}"/0001-lit-cfg-disable-gdb.patch
-	eapply "${patches_dir}"/0002-remove-dmd-common-int128-unittest.patch
-	eapply "${patches_dir}"/0003-dont-overwrite-user-flags.patch
-
-	eapply "${FILESDIR}/0006-1.41.0-disable-installing-includes.patch"
+	apply_patches
 
 	cmake_src_prepare
 }
@@ -97,6 +92,8 @@ src_configure() {
 		-DD_COMPILER="$(dlang_get_dmdw) $(dlang_get_dmdw_dcflags)"
 		-DCOMPILER_RT_BASE_DIR="${EPREFIX}"/usr/lib/clang
 		-DCOMPILER_RT_LIBDIR_OS=linux
+		# TODO: enable this
+		-DLDC_DYNAMIC_COMPILE=OFF
 
 		-DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
 		-DPHOBOS_SYSTEM_ZLIB=ON
@@ -105,24 +102,22 @@ src_configure() {
 		-DLDC_BUNDLE_LLVM_TOOLS=OFF
 		-DCOMPILE_D_MODULES_SEPARATELY=ON
 		-DTEST_COMPILER_RT_LIBRARIES=none
+		-DRT_SUPPORT_SANITIZERS=False
 		# Avoid collisions with other slots. We hardcode the path to
 		# make it easier for eselect-dlang to find the right compdir.
 		-DBASH_COMPLETION_COMPLETIONSDIR="${INSTALL_PREFIX}/usr/share/bash-completion/completions"
 	)
+	if use test; then
+		mycmakeargs+=(
+			-DGNU_MAKE_BIN="gmake" # tests/plugins/addFuncEntryCall/testPlugin.d
+			-DRUNTIME_DIR="${S}/runtime/druntime"
+		)
+	fi
 	cmake_src_configure
 }
 
 src_test() {
-	local libdir="${ESYSROOT}/usr/lib/ldc2/${SLOT}/$(get_libdir)"
-	cat >> "${BUILD_DIR}/bin/ldc2.conf" <<-EOF || die
-	"${CHOST}":
-	{
-		lib-dirs = [
-			"${libdir}",
-		];
-		rpath = "${libdir}";
-	};
-	EOF
+	make_conf_file
 
 	# Call the same tests that .github/actions/main.yml does
 	local jobs=$(get_makeopts_jobs)
@@ -151,8 +146,18 @@ src_test() {
 src_install() {
 	cmake_src_install
 
-	dosym -r "${INSTALL_PREFIX#${EPREFIX}}/bin/ldc2" "/usr/bin/ldc2-${SLOT}"
-	dosym -r "${INSTALL_PREFIX#${EPREFIX}}/bin/ldmd2" "/usr/bin/ldmd2-${SLOT}"
+	cat <<EOF > "${D}/${INSTALL_PREFIX}/etc/ldc2.conf/40-gentoo.conf" || die
+default: {
+	switches ~= [
+		"-link-defaultlib-shared",
+	];
+}
+EOF
+
+	local ldc2_root="${INSTALL_PREFIX#${EPREFIX}}"
+	dosym -r "${ldc2_root}/bin/ldc2" "/usr/bin/ldc2-${SLOT}"
+	dosym -r "${ldc2_root}/bin/ldmd2" "/usr/bin/ldmd2-${SLOT}"
+	dosym -r "${ldc2_root}/etc/ldc2.conf" "/etc/ldc2/${SLOT}"
 }
 
 pkg_postinst() {
@@ -161,4 +166,45 @@ pkg_postinst() {
 
 pkg_postrm() {
 	"${EROOT}"/usr/bin/eselect dlang update ldc2
+}
+
+apply_patches() {
+	local patches_dir="${WORKDIR}/ldc-patches-${PATCH_TAG_NAME}"
+	einfo "Applying patches from: ${patches_dir}"
+
+	eapply "${patches_dir}/compiler/0001-lit-cfg-disable-gdb.patch"
+	eapply "${patches_dir}/compiler/0002-remove-dmd-common-int128-unittest.patch"
+	eapply "${patches_dir}/compiler/0003-dont-overwrite-user-flags.patch"
+
+	eapply "${FILESDIR}/0006-1.41.0-disable-installing-includes.patch"
+
+        eapply "${patches_dir}/runtime/0001-only-build-release-runtime.patch"
+        eapply "${patches_dir}/runtime/0002-eprefix-druntime-test-shared-link-path-fix.patch"
+        eapply "${patches_dir}/runtime/0004-skip-gdb-and-valgrind-tests.patch"
+}
+
+# Generate a ldc2.conf file that uses the installed ldc2-runtime and the built headers
+make_conf_file() {
+	local conf_dir="${BUILD_DIR}/etc/ldc2.conf"
+	local conf="${conf_dir}/50-target-default.conf"
+
+	mkdir -p "${conf_dir}" || die
+	local libdir="${ESYSROOT}/usr/$(dlang_get_libdir ${PN}-${SLOT})"
+	cat > "${conf}" <<-EOF || die
+	default: {
+		switches ~= [
+			"-link-defaultlib-shared",
+		];
+		post-switches = [
+			"-I${S}/runtime/druntime/src",
+			"-I${BUILD_DIR}/import",
+			"-I${S}/runtime/jit-rt/d",
+			"-I${S}/runtime/phobos",
+		];
+		lib-dirs = [
+			"${libdir}",
+		];
+		rpath = "${libdir}";
+	}
+	EOF
 }
