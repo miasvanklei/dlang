@@ -25,7 +25,7 @@ KEYWORDS="~amd64 ~arm64 ~x86"
 
 IUSE="systemd"
 
-DLANG_COMPAT=( dmd-2_{106..111} gdc-1{3..5} ldc2-1_{35..40} ldc2-1_42 )
+DLANG_COMPAT=( dmd-2_{106..111} gdc-1{3..5} ldc2-1_{35..43} )
 
 inherit dlang-single systemd bash-completion-r1
 
